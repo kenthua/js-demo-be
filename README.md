@@ -5,22 +5,38 @@ https://github.com/christophersanson/js-demo-be
 
 # create keyring and key
 gcloud kms keyrings create js-demo-be --location=global
-gcloud kms keys create github-token --keyring=js-demo-be --purpose encryption --location=global
+gcloud kms keys create github-token \
+--keyring=js-demo-be \
+--purpose encryption \
+--location=global
 
 # find your cloudbuild service account email and apply below
+export PROJECT_ID=..
+export PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
 
 # need this so cloudbuilder can do kms encrypt/decrypt
-gcloud kms keys add-iam-policy-binding github-token --location=global --keyring=js-demo-be --member=serviceAccount:665770853622@cloudbuild.gserviceaccount.com --role=roles/cloudkms.cryptoKeyEncrypterDecrypter
+gcloud kms keys add-iam-policy-binding github-token \
+--location=global --keyring=js-demo-be \
+--member=serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com \
+--role=roles/cloudkms.cryptoKeyEncrypterDecrypter
 
 # need this access for cloudbuilder to execute the k8s apply
-gcloud kms keys add-iam-policy-binding github-token --location=global --keyring=js-demo-be --member=serviceAccount:665770853622@cloudbuild.gserviceaccount.com --role=roles/container.developer
+gcloud projects add-iam-policy-binding ${PROJECT_NUMBER} \
+  --member=serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com \
+  --role=roles/container.developer
 
 # acquire github token from github account developer settings - personal access tokens, need role of "repo"
 export TOKEN=
 
-echo -n $TOKEN | gcloud kms encrypt --plaintext-file=- --ciphertext-file=- --location=global --keyring=js-demo-be --key=github-token | base64
+echo -n $TOKEN | \
+gcloud kms encrypt \
+--plaintext-file=- \
+--ciphertext-file=- \
+--location=global \
+--keyring=js-demo-be \
+--key=github-token | base64
 
-# place the resulting key into your cloudbuild.yml GITHUB_TOKEN secret
+# place the resulting output key into your cloudbuild.yml GITHUB_TOKEN secret
 
 # modify cloudbuild.yml and k8s.yml accordingly to your gcloud / gke project
 
