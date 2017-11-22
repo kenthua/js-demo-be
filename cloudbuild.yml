@@ -1,0 +1,69 @@
+steps:
+# Pull the previous image to --cache-from
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['pull', 'gcr.io/$PROJECT_ID/$_IMAGE_NAME:latest'] # _IMAGE_NAME is a custom substitution
+
+# Build the new image 
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 
+    'build', 
+    '--cache-from', 'gcr.io/$PROJECT_ID/$_IMAGE_NAME:latest', 
+    '-t', 'gcr.io/$PROJECT_ID/$_IMAGE_NAME:latest',
+    '-t', 'gcr.io/$PROJECT_ID/$_IMAGE_NAME:$BUILD_ID', 
+    '.' 
+  ]
+
+# Push updated image
+- name: 'gcr.io/cloud-builders/docker'
+  args: ["push", "gcr.io/$PROJECT_ID/$_IMAGE_NAME:$BUILD_ID"]
+
+# Replace the image tag in the k8s Deployment
+- name: 'ubuntu'
+  args: [ 
+    'sed', '-i',
+    's|gcr.io/$PROJECT_ID/$_IMAGE_NAME:.*|gcr.io/$PROJECT_ID/$_IMAGE_NAME:$BUILD_ID|g', 
+    'k8s.yml'
+  ]
+
+# Commit k8s.yml change to the repo
+- name: 'gcr.io/cloud-builders/git'
+  args: [
+    '-c', 'user.email=""',
+    '-c', 'user.name="GCB Worker"',
+    'commit', '-a', '-m',
+    'Update k8s Deployment image to tag $BUILD_ID [ci skip]',
+    '-v'
+  ]
+
+# Push change to GitHub repo using encrypted secret
+- name: 'gcr.io/cloud-builders/git'
+  entrypoint: 'bash'
+  args: [
+    '-c',
+    'git push https://$$GITHUB_TOKEN@github.com/kenthua/js-demo-be.git master -v'
+  ]
+  secretEnv: ['GITHUB_TOKEN']
+
+# Apply change
+- name: 'gcr.io/cloud-builders/kubectl'
+  args: ['apply', '-f', 'k8s.yml']
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=cbdemo'
+
+# Check rollout status
+- name: 'gcr.io/cloud-builders/kubectl'
+  args: ['rollout', 'status', 'deployment/js-demo-be']
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=cbdemo'
+
+# Associate image that was pushed to GCR with the build history UI
+images:
+- 'gcr.io/$PROJECT_ID/$_IMAGE_NAME:$BUILD_ID'
+
+# Encrypt Github token for push changes
+secrets:
+- kmsKeyName: projects/kenthua-cpb100/locations/global/keyRings/js-demo-be/cryptoKeys/github-token
+  secretEnv:
+    GITHUB_TOKEN: CiQAvG27LVSui8GuqsYMnxXv7D52f+knPe2WXuFYZzI0C5BGVYwSUQA8fdXHKqSJlvG7zlK44tlzUTgxafqMnYtLREpZjIsuU/qhp7bChaEF1ZX1c9+0cIC7xfRW7eb6tucHcYe2WzwyjdUE4jDu0llXuI5oslEoww==
