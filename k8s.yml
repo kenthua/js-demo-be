@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
       - name: js-be
-        image: gcr.io/kenthua-cpb100/js-demo-be:20e983bb-1b70-477a-afbf-da4a8be349e3
+        image: gcr.io/kenthua-cpb100/js-demo-be:753708f2-558f-44f7-95d8-677813725864
         resources:
           requests:
             cpu: 100m
